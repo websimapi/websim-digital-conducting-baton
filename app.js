@@ -103,30 +103,44 @@ class DigitalConductor {
             // Check if elements exist before proceeding
             if (!this.webcamVideo || !this.poseCanvas) {
                 console.warn('Pose detection elements not found, skipping pose setup');
+                document.getElementById('poseStatus').textContent = 'Pose detection disabled';
                 return;
             }
             
             this.poseCanvasCtx = this.poseCanvas.getContext('2d');
             
-            // Initialize MediaPipe Pose
-            this.pose = new Pose({
-                locateFile: (file) => {
-                    return `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`;
-                }
-            });
+            // Check if MediaPipe Pose is available
+            if (typeof Pose === 'undefined') {
+                console.warn('MediaPipe Pose not loaded, skipping pose detection');
+                document.getElementById('poseStatus').textContent = 'Pose library not available';
+                return;
+            }
 
-            this.pose.setOptions({
-                modelComplexity: 1,
-                smoothLandmarks: true,
-                enableSegmentation: false,
-                smoothSegmentation: false,
-                minDetectionConfidence: 0.5,
-                minTrackingConfidence: 0.5
-            });
+            // Initialize MediaPipe Pose with better error handling
+            try {
+                this.pose = new Pose({
+                    locateFile: (file) => {
+                        return `https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5.1635989137/${file}`;
+                    }
+                });
 
-            this.pose.onResults((results) => {
-                this.onPoseResults(results);
-            });
+                this.pose.setOptions({
+                    modelComplexity: 1,
+                    smoothLandmarks: true,
+                    enableSegmentation: false,
+                    smoothSegmentation: false,
+                    minDetectionConfidence: 0.5,
+                    minTrackingConfidence: 0.5
+                });
+
+                this.pose.onResults((results) => {
+                    this.onPoseResults(results);
+                });
+            } catch (poseError) {
+                console.error('Error initializing MediaPipe Pose:', poseError);
+                document.getElementById('poseStatus').textContent = 'Pose detection failed to initialize';
+                return;
+            }
 
             // Start webcam
             const stream = await navigator.mediaDevices.getUserMedia({
@@ -143,14 +157,28 @@ class DigitalConductor {
 
         } catch (error) {
             console.error('Error setting up pose detection:', error);
-            document.getElementById('poseStatus').textContent = 'Camera access denied';
+            const poseStatusElement = document.getElementById('poseStatus');
+            if (poseStatusElement) {
+                poseStatusElement.textContent = 'Camera access denied or pose detection unavailable';
+            }
+            // Continue without pose detection - don't crash the app
         }
     }
 
     startPoseDetection() {
+        if (!this.pose || !this.webcamVideo) {
+            console.warn('Pose detection not available, skipping');
+            return;
+        }
+
         const detectPose = () => {
-            if (this.webcamVideo && this.pose) {
-                this.pose.send({ image: this.webcamVideo });
+            try {
+                if (this.webcamVideo && this.pose && this.webcamVideo.readyState === 4) {
+                    this.pose.send({ image: this.webcamVideo });
+                }
+            } catch (error) {
+                console.error('Error in pose detection:', error);
+                // Continue without crashing
             }
             requestAnimationFrame(detectPose);
         };
@@ -161,89 +189,99 @@ class DigitalConductor {
         // Check if canvas context exists
         if (!this.poseCanvasCtx || !this.poseCanvas) return;
         
-        // Clear canvas
-        this.poseCanvasCtx.clearRect(0, 0, this.poseCanvas.width, this.poseCanvas.height);
-        
-        // Draw the video frame
-        this.poseCanvasCtx.drawImage(results.image, 0, 0, this.poseCanvas.width, this.poseCanvas.height);
-
-        if (results.poseLandmarks) {
-            // Draw pose landmarks - check if drawing functions are available
-            if (typeof drawConnectors !== 'undefined' && typeof drawLandmarks !== 'undefined') {
-                drawConnectors(this.poseCanvasCtx, results.poseLandmarks, POSE_CONNECTIONS, {color: '#4ecdc4', lineWidth: 2});
-                drawLandmarks(this.poseCanvasCtx, results.poseLandmarks, {color: '#ff6b6b', lineWidth: 1, radius: 3});
-            }
-
-            // Extract key landmarks for conductor tracking
-            const landmarks = results.poseLandmarks;
+        try {
+            // Clear canvas
+            this.poseCanvasCtx.clearRect(0, 0, this.poseCanvas.width, this.poseCanvas.height);
             
-            // Key pose points (MediaPipe pose landmark indices)
-            const rightWrist = landmarks[16]; // Right wrist
-            const leftWrist = landmarks[15];  // Left wrist  
-            const rightShoulder = landmarks[12]; // Right shoulder
-            const leftShoulder = landmarks[11];  // Left shoulder
-            const nose = landmarks[0]; // Nose for reference
+            // Draw the video frame
+            this.poseCanvasCtx.drawImage(results.image, 0, 0, this.poseCanvas.width, this.poseCanvas.height);
 
-            // Update pose data
-            this.poseData.rightWrist = rightWrist;
-            this.poseData.leftWrist = leftWrist;
-            this.poseData.rightShoulder = rightShoulder;
-            this.poseData.leftShoulder = leftShoulder;
+            if (results.poseLandmarks) {
+                // Draw pose landmarks - check if drawing functions are available
+                if (typeof drawConnectors !== 'undefined' && typeof drawLandmarks !== 'undefined' && typeof POSE_CONNECTIONS !== 'undefined') {
+                    drawConnectors(this.poseCanvasCtx, results.poseLandmarks, POSE_CONNECTIONS, {color: '#4ecdc4', lineWidth: 2});
+                    drawLandmarks(this.poseCanvasCtx, results.poseLandmarks, {color: '#ff6b6b', lineWidth: 1, radius: 3});
+                }
 
-            // Determine which hand is likely holding the baton (higher position typically)
-            if (rightWrist && leftWrist) {
-                this.poseData.dominantHand = rightWrist.y < leftWrist.y ? 'right' : 'left';
+                // Extract key landmarks for conductor tracking
+                const landmarks = results.poseLandmarks;
+                
+                // Key pose points (MediaPipe pose landmark indices)
+                const rightWrist = landmarks[16]; // Right wrist
+                const leftWrist = landmarks[15];  // Left wrist  
+                const rightShoulder = landmarks[12]; // Right shoulder
+                const leftShoulder = landmarks[11];  // Left shoulder
+                const nose = landmarks[0]; // Nose for reference
+
+                // Update pose data
+                this.poseData.rightWrist = rightWrist;
+                this.poseData.leftWrist = leftWrist;
+                this.poseData.rightShoulder = rightShoulder;
+                this.poseData.leftShoulder = leftShoulder;
+
+                // Determine which hand is likely holding the baton (higher position typically)
+                if (rightWrist && leftWrist) {
+                    this.poseData.dominantHand = rightWrist.y < leftWrist.y ? 'right' : 'left';
+                    const dominantWrist = this.poseData.dominantHand === 'right' ? rightWrist : leftWrist;
+                    const dominantShoulder = this.poseData.dominantHand === 'right' ? rightShoulder : leftShoulder;
+
+                    // Convert normalized coordinates to 3D space coordinates
+                    if (dominantWrist && dominantShoulder) {
+                        // Normalize hand position relative to shoulder
+                        const relativeX = (dominantWrist.x - dominantShoulder.x) * 4; // Scale for 3D space
+                        const relativeY = (dominantShoulder.y - dominantWrist.y) * 4; // Inverted Y
+                        const relativeZ = (dominantWrist.z - dominantShoulder.z) * 4;
+
+                        this.poseData.handPosition = {
+                            x: relativeX,
+                            y: relativeY,
+                            z: relativeZ
+                        };
+                        this.poseData.confidence = Math.min(dominantWrist.visibility, dominantShoulder.visibility);
+                    }
+                }
+
+                // Draw baton hand indicator
                 const dominantWrist = this.poseData.dominantHand === 'right' ? rightWrist : leftWrist;
-                const dominantShoulder = this.poseData.dominantHand === 'right' ? rightShoulder : leftShoulder;
-
-                // Convert normalized coordinates to 3D space coordinates
-                if (dominantWrist && dominantShoulder) {
-                    // Normalize hand position relative to shoulder
-                    const relativeX = (dominantWrist.x - dominantShoulder.x) * 4; // Scale for 3D space
-                    const relativeY = (dominantShoulder.y - dominantWrist.y) * 4; // Inverted Y
-                    const relativeZ = (dominantWrist.z - dominantShoulder.z) * 4;
-
-                    this.poseData.handPosition = {
-                        x: relativeX,
-                        y: relativeY,
-                        z: relativeZ
-                    };
-                    this.poseData.confidence = Math.min(dominantWrist.visibility, dominantShoulder.visibility);
+                if (dominantWrist) {
+                    this.poseCanvasCtx.beginPath();
+                    this.poseCanvasCtx.arc(
+                        dominantWrist.x * this.poseCanvas.width,
+                        dominantWrist.y * this.poseCanvas.height,
+                        15, 0, 2 * Math.PI
+                    );
+                    this.poseCanvasCtx.strokeStyle = '#ffd93d';
+                    this.poseCanvasCtx.lineWidth = 3;
+                    this.poseCanvasCtx.stroke();
+                    
+                    // Add text label
+                    this.poseCanvasCtx.fillStyle = '#ffd93d';
+                    this.poseCanvasCtx.font = '12px Arial';
+                    this.poseCanvasCtx.fillText(
+                        'BATON HAND',
+                        dominantWrist.x * this.poseCanvas.width - 30,
+                        dominantWrist.y * this.poseCanvas.height - 20
+                    );
                 }
             }
 
-            // Draw baton hand indicator
-            const dominantWrist = this.poseData.dominantHand === 'right' ? rightWrist : leftWrist;
-            if (dominantWrist) {
-                this.poseCanvasCtx.beginPath();
-                this.poseCanvasCtx.arc(
-                    dominantWrist.x * this.poseCanvas.width,
-                    dominantWrist.y * this.poseCanvas.height,
-                    15, 0, 2 * Math.PI
-                );
-                this.poseCanvasCtx.strokeStyle = '#ffd93d';
-                this.poseCanvasCtx.lineWidth = 3;
-                this.poseCanvasCtx.stroke();
-                
-                // Add text label
-                this.poseCanvasCtx.fillStyle = '#ffd93d';
-                this.poseCanvasCtx.font = '12px Arial';
-                this.poseCanvasCtx.fillText(
-                    'BATON HAND',
-                    dominantWrist.x * this.poseCanvas.width - 30,
-                    dominantWrist.y * this.poseCanvas.height - 20
-                );
+            // Update status
+            const confidence = Math.round(this.poseData.confidence * 100);
+            const poseStatusElement = document.getElementById('poseStatus');
+            if (poseStatusElement) {
+                if (results.poseLandmarks) {
+                    poseStatusElement.textContent = 
+                        `Tracking ${this.poseData.dominantHand} hand - Confidence: ${confidence}%`;
+                } else {
+                    poseStatusElement.textContent = 'No pose detected - stand in camera view';
+                }
             }
-        }
-
-        // Update status
-        const confidence = Math.round(this.poseData.confidence * 100);
-        const poseStatusElement = document.getElementById('poseStatus');
-        if (poseStatusElement) {
-            poseStatusElement.textContent = 
-                `Tracking ${this.poseData.dominantHand} hand - Confidence: ${confidence}%`;
-        } else {
-            document.getElementById('poseStatus').textContent = 'No pose detected';
+        } catch (error) {
+            console.error('Error processing pose results:', error);
+            const poseStatusElement = document.getElementById('poseStatus');
+            if (poseStatusElement) {
+                poseStatusElement.textContent = 'Pose processing error - continuing without pose data';
+            }
         }
     }
 
