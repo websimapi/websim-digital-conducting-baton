@@ -11,6 +11,22 @@ class DigitalConductor {
         this.renderer = null;
         this.baton = null;
         this.batonGroup = null;
+        
+        // Pose detection properties
+        this.pose = null;
+        this.webcamVideo = null;
+        this.poseCanvas = null;
+        this.poseCanvasCtx = null;
+        this.poseData = {
+            rightWrist: null,
+            leftWrist: null,
+            rightShoulder: null,
+            leftShoulder: null,
+            dominantHand: 'right', // Default to right hand
+            handPosition: { x: 0, y: 0, z: 0 },
+            confidence: 0
+        };
+        
         this.init();
     }
 
@@ -73,7 +89,145 @@ class DigitalConductor {
 
     setupDesktopInterface() {
         this.setup3DVisualization();
+        this.setupPoseDetection();
         this.updateConductorDisplay();
+    }
+
+    async setupPoseDetection() {
+        if (this.isMobile) return;
+
+        try {
+            this.webcamVideo = document.getElementById('webcamVideo');
+            this.poseCanvas = document.getElementById('poseCanvas');
+            this.poseCanvasCtx = this.poseCanvas.getContext('2d');
+            
+            // Initialize MediaPipe Pose
+            this.pose = new Pose({
+                locateFile: (file) => {
+                    return `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`;
+                }
+            });
+
+            this.pose.setOptions({
+                modelComplexity: 1,
+                smoothLandmarks: true,
+                enableSegmentation: false,
+                smoothSegmentation: false,
+                minDetectionConfidence: 0.5,
+                minTrackingConfidence: 0.5
+            });
+
+            this.pose.onResults((results) => {
+                this.onPoseResults(results);
+            });
+
+            // Start webcam
+            const stream = await navigator.mediaDevices.getUserMedia({
+                video: { width: 640, height: 480 }
+            });
+            
+            this.webcamVideo.srcObject = stream;
+            this.webcamVideo.addEventListener('loadeddata', () => {
+                this.poseCanvas.width = this.webcamVideo.videoWidth;
+                this.poseCanvas.height = this.webcamVideo.videoHeight;
+                this.startPoseDetection();
+                document.getElementById('poseStatus').textContent = 'Pose tracking active';
+            });
+
+        } catch (error) {
+            console.error('Error setting up pose detection:', error);
+            document.getElementById('poseStatus').textContent = 'Camera access denied';
+        }
+    }
+
+    startPoseDetection() {
+        const detectPose = () => {
+            if (this.webcamVideo && this.pose) {
+                this.pose.send({ image: this.webcamVideo });
+            }
+            requestAnimationFrame(detectPose);
+        };
+        detectPose();
+    }
+
+    onPoseResults(results) {
+        // Clear canvas
+        this.poseCanvasCtx.clearRect(0, 0, this.poseCanvas.width, this.poseCanvas.height);
+        
+        // Draw the video frame
+        this.poseCanvasCtx.drawImage(results.image, 0, 0, this.poseCanvas.width, this.poseCanvas.height);
+
+        if (results.poseLandmarks) {
+            // Draw pose landmarks
+            drawConnectors(this.poseCanvasCtx, results.poseLandmarks, POSE_CONNECTIONS, {color: '#4ecdc4', lineWidth: 2});
+            drawLandmarks(this.poseCanvasCtx, results.poseLandmarks, {color: '#ff6b6b', lineWidth: 1, radius: 3});
+
+            // Extract key landmarks for conductor tracking
+            const landmarks = results.poseLandmarks;
+            
+            // Key pose points (MediaPipe pose landmark indices)
+            const rightWrist = landmarks[16]; // Right wrist
+            const leftWrist = landmarks[15];  // Left wrist  
+            const rightShoulder = landmarks[12]; // Right shoulder
+            const leftShoulder = landmarks[11];  // Left shoulder
+            const nose = landmarks[0]; // Nose for reference
+
+            // Update pose data
+            this.poseData.rightWrist = rightWrist;
+            this.poseData.leftWrist = leftWrist;
+            this.poseData.rightShoulder = rightShoulder;
+            this.poseData.leftShoulder = leftShoulder;
+
+            // Determine which hand is likely holding the baton (higher position typically)
+            if (rightWrist && leftWrist) {
+                this.poseData.dominantHand = rightWrist.y < leftWrist.y ? 'right' : 'left';
+                const dominantWrist = this.poseData.dominantHand === 'right' ? rightWrist : leftWrist;
+                const dominantShoulder = this.poseData.dominantHand === 'right' ? rightShoulder : leftShoulder;
+
+                // Convert normalized coordinates to 3D space coordinates
+                if (dominantWrist && dominantShoulder) {
+                    // Normalize hand position relative to shoulder
+                    const relativeX = (dominantWrist.x - dominantShoulder.x) * 4; // Scale for 3D space
+                    const relativeY = (dominantShoulder.y - dominantWrist.y) * 4; // Inverted Y
+                    const relativeZ = (dominantWrist.z - dominantShoulder.z) * 4;
+
+                    this.poseData.handPosition = {
+                        x: relativeX,
+                        y: relativeY,
+                        z: relativeZ
+                    };
+                    this.poseData.confidence = Math.min(dominantWrist.visibility, dominantShoulder.visibility);
+                }
+            }
+
+            // Draw baton hand indicator
+            const dominantWrist = this.poseData.dominantHand === 'right' ? rightWrist : leftWrist;
+            if (dominantWrist) {
+                this.poseCanvasCtx.beginPath();
+                this.poseCanvasCtx.arc(
+                    dominantWrist.x * this.poseCanvas.width,
+                    dominantWrist.y * this.poseCanvas.height,
+                    15, 0, 2 * Math.PI
+                );
+                this.poseCanvasCtx.strokeStyle = '#ffd93d';
+                this.poseCanvasCtx.lineWidth = 3;
+                this.poseCanvasCtx.stroke();
+                
+                // Add text label
+                this.poseCanvasCtx.fillStyle = '#ffd93d';
+                this.poseCanvasCtx.font = '12px Arial';
+                this.poseCanvasCtx.fillText(
+                    'BATON HAND',
+                    dominantWrist.x * this.poseCanvas.width - 30,
+                    dominantWrist.y * this.poseCanvas.height - 20
+                );
+            }
+        }
+
+        // Update status
+        const confidence = Math.round(this.poseData.confidence * 100);
+        document.getElementById('poseStatus').textContent = 
+            `Tracking ${this.poseData.dominantHand} hand - Confidence: ${confidence}%`;
     }
 
     setup3DVisualization() {
@@ -217,30 +371,53 @@ class DigitalConductor {
         if (conductingData && conductingData.motionData && this.baton) {
             const motion = conductingData.motionData;
             
-            // Apply rotations based on device orientation
+            // Combine gyroscope data with pose data for better positioning
+            let basePosition = { x: 0, y: 1, z: 0 };
+            let positionWeight = 0.5; // Weight for pose vs gyroscope data
+
+            // Use pose data for base positioning if available and confident
+            if (this.poseData.confidence > 0.5) {
+                basePosition = {
+                    x: this.poseData.handPosition.x,
+                    y: Math.max(0.5, 1 + this.poseData.handPosition.y), // Keep above ground
+                    z: this.poseData.handPosition.z
+                };
+                positionWeight = 0.8; // Higher weight for pose data when confident
+            }
+
+            // Apply rotations based on device orientation (gyroscope data)
             if (motion.tilt) {
-                // Convert device orientation to 3D rotations
                 const alpha = THREE.MathUtils.degToRad(motion.tilt.alpha || 0);
                 const beta = THREE.MathUtils.degToRad(motion.tilt.beta || 0);
                 const gamma = THREE.MathUtils.degToRad(motion.tilt.gamma || 0);
                 
-                // Apply rotations with some smoothing
+                // Apply rotations with smoothing
                 this.baton.rotation.x = THREE.MathUtils.lerp(this.baton.rotation.x, beta * 0.5, 0.1);
                 this.baton.rotation.y = THREE.MathUtils.lerp(this.baton.rotation.y, alpha * 0.3, 0.1);
                 this.baton.rotation.z = THREE.MathUtils.lerp(this.baton.rotation.z, gamma * 0.5, 0.1);
             }
             
-            // Apply position based on acceleration
+            // Combine pose position with gyroscope motion data
             if (motion.acceleration) {
                 const intensity = motion.intensity || 0;
-                const scale = Math.min(intensity * 0.1, 0.5);
+                const accelScale = Math.min(intensity * 0.05, 0.3); // Reduced scale when using pose data
                 
-                this.baton.position.x = THREE.MathUtils.lerp(this.baton.position.x, (motion.acceleration.x || 0) * scale, 0.1);
-                this.baton.position.z = THREE.MathUtils.lerp(this.baton.position.z, (motion.acceleration.y || 0) * scale, 0.1);
-                this.baton.position.y = THREE.MathUtils.lerp(this.baton.position.y, 1 + (motion.acceleration.z || 0) * scale, 0.1);
+                // Mix pose-based position with acceleration offsets
+                const targetX = basePosition.x + (motion.acceleration.x || 0) * accelScale;
+                const targetY = basePosition.y + (motion.acceleration.z || 0) * accelScale;
+                const targetZ = basePosition.z + (motion.acceleration.y || 0) * accelScale;
+                
+                this.baton.position.x = THREE.MathUtils.lerp(this.baton.position.x, targetX, 0.15);
+                this.baton.position.y = THREE.MathUtils.lerp(this.baton.position.y, targetY, 0.15);
+                this.baton.position.z = THREE.MathUtils.lerp(this.baton.position.z, targetZ, 0.15);
+            } else {
+                // Use pose data only
+                this.baton.position.x = THREE.MathUtils.lerp(this.baton.position.x, basePosition.x, 0.1);
+                this.baton.position.y = THREE.MathUtils.lerp(this.baton.position.y, basePosition.y, 0.1);
+                this.baton.position.z = THREE.MathUtils.lerp(this.baton.position.z, basePosition.z, 0.1);
             }
             
-            // Update sensor data display
+            // Update sensor data display with combined data
             this.updateSensorDataDisplay(motion);
             
             // Update tempo display
@@ -252,7 +429,7 @@ class DigitalConductor {
     }
 
     updateSensorDataDisplay(motionData) {
-        // Update all sensor data displays
+        // Update all sensor data displays including pose data
         const elements = {
             alphaValue: motionData.tilt?.alpha?.toFixed(1) + '°' || '0°',
             betaValue: motionData.tilt?.beta?.toFixed(1) + '°' || '0°',
@@ -270,6 +447,43 @@ class DigitalConductor {
                 element.textContent = value;
             }
         });
+
+        // Add pose data to sensor panel if we have it
+        const poseDataElements = document.querySelectorAll('.pose-data-item');
+        if (poseDataElements.length === 0 && this.poseData.confidence > 0) {
+            const sensorGrid = document.querySelector('.data-grid');
+            if (sensorGrid) {
+                // Add pose data items
+                const poseItems = [
+                    { label: 'Pose Confidence:', id: 'poseConfidence', value: Math.round(this.poseData.confidence * 100) + '%' },
+                    { label: 'Dominant Hand:', id: 'dominantHand', value: this.poseData.dominantHand },
+                    { label: 'Hand Position X:', id: 'handPosX', value: this.poseData.handPosition.x.toFixed(2) },
+                    { label: 'Hand Position Y:', id: 'handPosY', value: this.poseData.handPosition.y.toFixed(2) }
+                ];
+
+                poseItems.forEach(item => {
+                    const div = document.createElement('div');
+                    div.className = 'data-item pose-data-item';
+                    div.innerHTML = `<label>${item.label}</label><span id="${item.id}">${item.value}</span>`;
+                    sensorGrid.appendChild(div);
+                });
+            }
+        } else {
+            // Update existing pose data
+            const poseElements = {
+                poseConfidence: Math.round(this.poseData.confidence * 100) + '%',
+                dominantHand: this.poseData.dominantHand,
+                handPosX: this.poseData.handPosition.x.toFixed(2),
+                handPosY: this.poseData.handPosition.y.toFixed(2)
+            };
+
+            Object.entries(poseElements).forEach(([id, value]) => {
+                const element = document.getElementById(id);
+                if (element) {
+                    element.textContent = value;
+                }
+            });
+        }
     }
 
     startConducting() {

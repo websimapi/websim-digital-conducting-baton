@@ -354,6 +354,36 @@ body {
     height: 100% !important;
 }
 
+.webcam-container {
+    position: relative;
+    width: 300px;
+    height: 200px;
+    margin: 20px auto;
+    background: rgba(255,255,255,0.1);
+    border-radius: 10px;
+    backdrop-filter: blur(10px);
+    overflow: hidden;
+}
+
+.pose-status {
+    position: absolute;
+    bottom: 10px;
+    left: 10px;
+    right: 10px;
+    background: rgba(0,0,0,0.7);
+    color: white;
+    padding: 5px;
+    border-radius: 5px;
+    font-size: 0.9rem;
+    text-align: center;
+    z-index: 20;
+}
+
+#poseCanvas {
+    width: 100% !important;
+    height: 100% !important;
+}
+
 /* Animation for conducting effects */
 @keyframes conducting-glow {
     0%, 100% {
