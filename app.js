@@ -99,6 +99,13 @@ class DigitalConductor {
         try {
             this.webcamVideo = document.getElementById('webcamVideo');
             this.poseCanvas = document.getElementById('poseCanvas');
+            
+            // Check if elements exist before proceeding
+            if (!this.webcamVideo || !this.poseCanvas) {
+                console.warn('Pose detection elements not found, skipping pose setup');
+                return;
+            }
+            
             this.poseCanvasCtx = this.poseCanvas.getContext('2d');
             
             // Initialize MediaPipe Pose
@@ -151,6 +158,9 @@ class DigitalConductor {
     }
 
     onPoseResults(results) {
+        // Check if canvas context exists
+        if (!this.poseCanvasCtx || !this.poseCanvas) return;
+        
         // Clear canvas
         this.poseCanvasCtx.clearRect(0, 0, this.poseCanvas.width, this.poseCanvas.height);
         
@@ -158,9 +168,11 @@ class DigitalConductor {
         this.poseCanvasCtx.drawImage(results.image, 0, 0, this.poseCanvas.width, this.poseCanvas.height);
 
         if (results.poseLandmarks) {
-            // Draw pose landmarks
-            drawConnectors(this.poseCanvasCtx, results.poseLandmarks, POSE_CONNECTIONS, {color: '#4ecdc4', lineWidth: 2});
-            drawLandmarks(this.poseCanvasCtx, results.poseLandmarks, {color: '#ff6b6b', lineWidth: 1, radius: 3});
+            // Draw pose landmarks - check if drawing functions are available
+            if (typeof drawConnectors !== 'undefined' && typeof drawLandmarks !== 'undefined') {
+                drawConnectors(this.poseCanvasCtx, results.poseLandmarks, POSE_CONNECTIONS, {color: '#4ecdc4', lineWidth: 2});
+                drawLandmarks(this.poseCanvasCtx, results.poseLandmarks, {color: '#ff6b6b', lineWidth: 1, radius: 3});
+            }
 
             // Extract key landmarks for conductor tracking
             const landmarks = results.poseLandmarks;
@@ -226,8 +238,13 @@ class DigitalConductor {
 
         // Update status
         const confidence = Math.round(this.poseData.confidence * 100);
-        document.getElementById('poseStatus').textContent = 
-            `Tracking ${this.poseData.dominantHand} hand - Confidence: ${confidence}%`;
+        const poseStatusElement = document.getElementById('poseStatus');
+        if (poseStatusElement) {
+            poseStatusElement.textContent = 
+                `Tracking ${this.poseData.dominantHand} hand - Confidence: ${confidence}%`;
+        } else {
+            document.getElementById('poseStatus').textContent = 'No pose detected';
+        }
     }
 
     setup3DVisualization() {
