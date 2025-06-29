@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Digital Conducting Baton</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="device-info" id="deviceInfo"></div>
+    
+    <div class="container">
+        <!-- Mobile Conductor Interface -->
+        <div class="mobile-controller" id="mobileController">
+            <div class="conductor-interface" id="conductorInterface">
+                <div class="baton-status">
+                    <h2>🎼 Digital Baton</h2>
+                    <p class="status-text" id="batonStatus">Initializing sensors...</p>
+                </div>
+                
+                <div class="conducting-area" id="conductingArea">
+                    <div class="motion-indicator" id="motionIndicator">
+                        <div class="beat-pulse" id="beatPulse"></div>
+                        <div class="tempo-display" id="tempoDisplay">♩ = 120</div>
+                    </div>
+                </div>
+                
+                <div class="conductor-controls">
+                    <button class="control-btn start-btn" id="startConducting">Start Conducting</button>
+                    <button class="control-btn stop-btn" id="stopConducting" style="display: none;">Stop Conducting</button>
+                    <button class="control-btn calibrate-btn" id="calibrateBaton">Calibrate</button>
+                </div>
+                
+                <div class="sensor-data" id="sensorData">
+                    <div class="sensor-reading">
+                        <span>Tilt:</span> <span id="tiltReading">0°</span>
+                    </div>
+                    <div class="sensor-reading">
+                        <span>Motion:</span> <span id="motionReading">0</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Desktop Display Interface -->
+        <div class="desktop-display" id="desktopDisplay">
+            <div class="connection-status">
+                <p class="status-text" id="desktopStatus">Waiting for conductor...</p>
+            </div>
+            
+            <div class="conducting-visualization" id="conductingVisualization">
+                <div class="baton-display" id="batonDisplay">
+                    <div class="baton-trail" id="batonTrail"></div>
+                    <div class="baton-tip" id="batonTip"></div>
+                </div>
+                
+                <div class="tempo-visualization" id="tempoVisualization">
+                    <div class="metronome" id="metronome">
+                        <div class="beat-indicator" id="beatIndicator"></div>
+                        <div class="tempo-text" id="tempoText">♩ = 120 BPM</div>
+                    </div>
+                </div>
+                
+                <div class="pattern-display" id="patternDisplay">
+                    <canvas id="conductingCanvas" width="800" height="400"></canvas>
+                </div>
+            </div>
+            
+            <div class="conductor-info" id="conductorInfo">
+                <!-- Conductor status will be populated here -->
+            </div>
+            
+            <div class="waiting-message" id="waitingMessage">
+                <p>🎼 <strong>Digital Conducting System</strong></p>
+                <p>1. Open this page on your mobile device</p>
+                <p>2. Hold your phone like a conductor's baton</p>
+                <p>3. Start conducting to control tempo and expression</p>
+                <p>4. Your movements will be visualized here in real-time</p>
+            </div>
+        </div>
+    </div>
+
+    <script src="conductor-controller.js"></script>
+    <script src="app.js"></script>
+<script defer src="https://static.cloudflareinsights.com/beacon.min.js/v8c78df7c7c0f484497ecbca7046644da1771523124516" integrity="sha512-8DS7rgIrAmghBFwoOTujcf6D9rXvH8xm8JQ1Ja01h9QX8EzXldiszufYa4IFfKdLUKTTrnSFXLDkUEOTrZQ8Qg==" data-cf-beacon='{"version":"2024.11.0","token":"4c6229722a6346bc8eb5cb0e5eae5d41","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
+</body>
+</html>
