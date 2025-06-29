@@ -138,6 +138,49 @@ body {
     gap: 15px;
 }
 
+.sensor-data-panel {
+    background: rgba(255,255,255,0.1);
+    border-radius: 10px;
+    padding: 20px;
+    margin: 20px 0;
+    backdrop-filter: blur(10px);
+}
+
+.sensor-data-panel h3 {
+    color: #4ecdc4;
+    margin-bottom: 15px;
+    text-align: center;
+    font-size: 1.3rem;
+}
+
+.data-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 15px;
+}
+
+.data-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px;
+    background: rgba(255,255,255,0.05);
+    border-radius: 8px;
+    border: 1px solid rgba(78, 205, 196, 0.2);
+}
+
+.data-item label {
+    font-size: 0.9rem;
+    color: rgba(255,255,255,0.8);
+}
+
+.data-item span {
+    font-size: 1rem;
+    font-weight: bold;
+    color: #4ecdc4;
+    text-shadow: 0 0 5px rgba(78, 205, 196, 0.3);
+}
+
 .sensor-reading {
     text-align: center;
     font-size: 1rem;
@@ -298,6 +341,17 @@ body {
     padding: 10px;
     border-radius: 5px;
     font-size: 0.8rem;
+}
+
+#batonScene {
+    position: relative;
+    overflow: hidden;
+}
+
+#batonScene canvas {
+    display: block;
+    width: 100% !important;
+    height: 100% !important;
 }
 
 /* Animation for conducting effects */

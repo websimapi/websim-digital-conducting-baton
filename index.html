@@ -5,6 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Digital Conducting Baton</title>
     <link rel="stylesheet" href="styles.css">
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://esm.sh/three@0.158.0",
+            "three/addons/": "https://esm.sh/three@0.158.0/examples/jsm/"
+        }
+    }
+    </script>
 </head>
 <body>
     <div class="device-info" id="deviceInfo"></div>
@@ -62,7 +70,45 @@
                 </div>
                 
                 <div class="pattern-display" id="patternDisplay">
-                    <canvas id="conductingCanvas" width="800" height="400"></canvas>
+                    <div id="batonScene" style="width: 100%; height: 400px; background: rgba(0,0,0,0.3); border-radius: 10px; border: 2px solid rgba(78, 205, 196, 0.3);"></div>
+                </div>
+                
+                <div class="sensor-data-panel" id="sensorDataPanel">
+                    <h3>Sensor Data</h3>
+                    <div class="data-grid">
+                        <div class="data-item">
+                            <label>Tilt Alpha (Z):</label>
+                            <span id="alphaValue">0°</span>
+                        </div>
+                        <div class="data-item">
+                            <label>Tilt Beta (X):</label>
+                            <span id="betaValue">0°</span>
+                        </div>
+                        <div class="data-item">
+                            <label>Tilt Gamma (Y):</label>
+                            <span id="gammaValue">0°</span>
+                        </div>
+                        <div class="data-item">
+                            <label>Acceleration X:</label>
+                            <span id="accelXValue">0</span>
+                        </div>
+                        <div class="data-item">
+                            <label>Acceleration Y:</label>
+                            <span id="accelYValue">0</span>
+                        </div>
+                        <div class="data-item">
+                            <label>Acceleration Z:</label>
+                            <span id="accelZValue">0</span>
+                        </div>
+                        <div class="data-item">
+                            <label>Motion Intensity:</label>
+                            <span id="intensityValue">0</span>
+                        </div>
+                        <div class="data-item">
+                            <label>Detected Tempo:</label>
+                            <span id="detectedTempo">120 BPM</span>
+                        </div>
+                    </div>
                 </div>
             </div>
             
